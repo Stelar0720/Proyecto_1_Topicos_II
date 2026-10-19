@@ -37,6 +37,12 @@ def update_me(payload: schemas.CustomerProfileUpdate, customer: models.Customer 
     return crud.update_customer(db, customer, payload.display_name)
 
 
+@router.get("/me/appointments", response_model=list[schemas.AppointmentOut])
+def my_upcoming_appointments(customer: models.Customer = Depends(require_customer), db: Session = Depends(get_db)):
+    """Sólo devuelve próximas citas activas pertenecientes al cliente autenticado."""
+    return crud.list_customer_upcoming_appointments(db, customer.id)
+
+
 @router.post("/me/appointments", response_model=schemas.AppointmentOut, status_code=201)
 def create_my_appointment(payload: schemas.CustomerAppointmentCreate, customer: models.Customer = Depends(require_customer), db: Session = Depends(get_db)):
     if len(customer.display_name.strip()) < 2:

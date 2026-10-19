@@ -114,3 +114,25 @@ def test_admin_auth():
     assert client.get(
         "/api/admin/appointments", headers={"X-Admin-Token": "test-token"}
     ).status_code == 200  # correcto
+
+
+def test_customer_profile_booking_and_private_upcoming():
+    from app.customer_auth import issue_challenge
+    db = SessionLocal()
+    code = issue_challenge(db, "+56911112222")
+    db.close()
+    token_response = client.post("/api/customer-access/tokens", json={"customer_phone": "+56911112222", "code": code})
+    assert token_response.status_code == 200
+    headers = {"Authorization": "Bearer " + token_response.json()["access_token"]}
+    assert client.put("/api/me", headers=headers, json={"display_name": "Cliente Uno"}).status_code == 200
+    sid = client.get("/api/services").json()[0]["id"]
+    start = _next_open_day_at(14)
+    assert client.post("/api/me/appointments", headers=headers, json={"service_id": sid, "start_at": start.isoformat()}).status_code == 201
+    mine = client.get("/api/me/appointments", headers=headers)
+    assert mine.status_code == 200 and len(mine.json()) == 1 and mine.json()[0]["customer_name"] == "Cliente Uno"
+    assert client.get("/api/me/appointments").status_code == 422
+
+
+def test_customer_invalid_code_cannot_access_data():
+    r = client.post("/api/customer-access/tokens", json={"customer_phone": "+56911112222", "code": "000000"})
+    assert r.status_code == 401

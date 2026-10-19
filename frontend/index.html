@@ -143,6 +143,7 @@
       <h2><i class="fa-solid fa-user"></i> Tus datos</h2>
       <p class="hint">Para confirmarte la reserva por WhatsApp.</p>
       <p class="hint">¿Ya reservaste? <button type="button" onclick="customerAccess()">Usar mis datos guardados</button></p>
+      <p class="hint"><button type="button" onclick="showMyAppointments()">Ver mis próximas citas</button></p>
       <div class="summary" id="summary"></div>
       <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
       <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+56 9 XXXX XXXX" inputmode="tel" autocomplete="tel" /></div>
@@ -211,6 +212,12 @@
     let me=await api("/api/me",{headers:{Authorization:"Bearer "+customerToken}});
     if(!me.display_name){ const name=prompt("¿Cuál es tu nombre?"); if(name) me=await api("/api/me",{method:"PUT",headers:{"Content-Type":"application/json",Authorization:"Bearer "+customerToken},body:JSON.stringify({display_name:name})}); }
     $("name").value=me.display_name; $("phone").value=me.phone; $("name").readOnly=true; $("phone").readOnly=true;
+  }
+  async function showMyAppointments(){
+    if(!customerToken){ await customerAccess(); if(!customerToken) return; }
+    const appointments=await api("/api/me/appointments",{headers:{Authorization:"Bearer "+customerToken}});
+    if(!appointments.length){ alert("No tienes próximas citas."); return; }
+    alert(appointments.map(a=>`${a.service ? a.service.name : "Servicio"}: ${new Date(a.start_at).toLocaleString("es-CL")} (${a.status})`).join("\n"));
   }
 
   function setStep(n){
