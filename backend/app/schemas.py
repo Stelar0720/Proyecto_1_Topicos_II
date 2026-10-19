@@ -71,6 +71,50 @@ class AppointmentOut(BaseModel):
     service: Optional[ServiceOut] = None
 
 
+# ---------- Identidad de cliente ----------
+class CustomerChallengeRequest(BaseModel):
+    customer_phone: str
+
+    @field_validator("customer_phone")
+    @classmethod
+    def _validate_phone(cls, v: str) -> str:
+        try:
+            return normalize_cl_phone(v)
+        except PhoneError as e:
+            raise ValueError(str(e))
+
+
+class CustomerChallengeVerify(CustomerChallengeRequest):
+    code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class CustomerTokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class CustomerProfileUpdate(BaseModel):
+    display_name: str = Field(..., min_length=2, max_length=120)
+
+
+class CustomerProfileOut(BaseModel):
+    id: str
+    display_name: str
+    phone: str
+
+
+class CustomerAppointmentCreate(BaseModel):
+    service_id: int
+    start_at: datetime
+    notes: str = Field("", max_length=300)
+
+    @field_validator("start_at")
+    @classmethod
+    def _naive_local(cls, v: datetime) -> datetime:
+        return to_local_naive(v)
+
+
 class AppointmentStatusUpdate(BaseModel):
     status: str
 

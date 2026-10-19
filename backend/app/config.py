@@ -30,6 +30,9 @@ class Settings(BaseSettings):
 
     # --- Seguridad ---
     admin_token: str = "cambia-este-token-admin"
+    customer_auth_secret: str = "cambia-este-secreto-de-clientes"
+    customer_access_code_minutes: int = 10
+    customer_access_token_minutes: int = 30
     cors_origins: str = "*"      # separado por comas, o "*" para todos
 
     # --- Twilio / WhatsApp ---

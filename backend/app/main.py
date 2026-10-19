@@ -12,8 +12,9 @@ from fastapi.responses import RedirectResponse
 from . import __version__
 from .config import settings
 from .database import Base, engine
+from .migrations import apply_schema_migrations
 from .reminders import run_reminders_job
-from .routers import admin, public, scores
+from .routers import admin, customers, public, scores
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +29,7 @@ scheduler: BackgroundScheduler | None = None
 async def lifespan(app: FastAPI):
     # --- startup ---
     Base.metadata.create_all(bind=engine)
+    apply_schema_migrations(engine)
 
     global scheduler
     scheduler = BackgroundScheduler(timezone=settings.business_timezone)
@@ -69,6 +71,7 @@ app.add_middleware(
 )
 
 app.include_router(public.router)
+app.include_router(customers.router)
 app.include_router(admin.router)
 app.include_router(scores.router)
 

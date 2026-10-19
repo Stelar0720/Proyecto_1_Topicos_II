@@ -142,6 +142,7 @@
     <div class="card disabled" id="cardWho">
       <h2><i class="fa-solid fa-user"></i> Tus datos</h2>
       <p class="hint">Para confirmarte la reserva por WhatsApp.</p>
+      <p class="hint">¿Ya reservaste? <button type="button" onclick="customerAccess()">Usar mis datos guardados</button></p>
       <div class="summary" id="summary"></div>
       <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
       <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+56 9 XXXX XXXX" inputmode="tel" autocomplete="tel" /></div>
@@ -198,7 +199,19 @@
   }
 
   const state = { service:null, date:null, time:null, services:[] };
+  let customerToken = sessionStorage.getItem("citafacil_customer_token") || "";
   const $ = id => document.getElementById(id);
+
+  async function customerAccess(){
+    const phone=prompt("Ingresa tu celular para recibir un código por WhatsApp:"); if(!phone) return;
+    await api("/api/customer-access/challenges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({customer_phone:phone})});
+    const code=prompt("Ingresa el código de 6 dígitos recibido:"); if(!code) return;
+    const token=await api("/api/customer-access/tokens",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({customer_phone:phone,code})});
+    customerToken=token.access_token; sessionStorage.setItem("citafacil_customer_token",customerToken);
+    let me=await api("/api/me",{headers:{Authorization:"Bearer "+customerToken}});
+    if(!me.display_name){ const name=prompt("¿Cuál es tu nombre?"); if(name) me=await api("/api/me",{method:"PUT",headers:{"Content-Type":"application/json",Authorization:"Bearer "+customerToken},body:JSON.stringify({display_name:name})}); }
+    $("name").value=me.display_name; $("phone").value=me.phone; $("name").readOnly=true; $("phone").readOnly=true;
+  }
 
   function setStep(n){
     $("st1").className = "step" + (n>1?" done":(n===1?" active":""));
@@ -336,7 +349,8 @@
     try{
       const payload={customer_name:name, customer_phone:phone, service_id:state.service.id,
         start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
-      await api("/api/appointments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}, 65000);
+      const authenticated=!!customerToken;
+      await api(authenticated?"/api/me/appointments":"/api/appointments",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},authenticated?{Authorization:"Bearer "+customerToken}:{}),body:JSON.stringify(authenticated?{service_id:payload.service_id,start_at:payload.start_at,notes:payload.notes}:payload)}, 65000);
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
       $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.`;
