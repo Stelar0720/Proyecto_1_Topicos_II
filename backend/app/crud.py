@@ -129,6 +129,15 @@ def create_customer_appointment(db: Session, customer: models.Customer, data: sc
     return obj
 
 
+def list_customer_upcoming_appointments(db: Session, customer_id: str) -> list[models.Appointment]:
+    from .utils import local_now
+    return (db.query(models.Appointment)
+            .filter(models.Appointment.customer_id == customer_id,
+                    models.Appointment.start_at >= local_now(),
+                    models.Appointment.status.in_([models.STATUS_PENDING, models.STATUS_CONFIRMED]))
+            .order_by(models.Appointment.start_at).all())
+
+
 def stats(db: Session) -> dict:
     from .utils import local_now
 
