@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
+import uuid
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -89,6 +90,43 @@ def set_status(db: Session, appt: models.Appointment, status: str) -> models.App
 def delete_appointment(db: Session, appt: models.Appointment) -> None:
     db.delete(appt)
     db.commit()
+
+
+# ---------- Clientes identificados ----------
+def get_customer_by_phone(db: Session, phone: str) -> Optional[models.Customer]:
+    return db.query(models.Customer).filter(models.Customer.phone == phone).first()
+
+
+def get_customer(db: Session, customer_id: str) -> Optional[models.Customer]:
+    return db.query(models.Customer).filter(models.Customer.id == customer_id).first()
+
+
+def get_or_create_customer(db: Session, phone: str) -> models.Customer:
+    customer = get_customer_by_phone(db, phone)
+    if customer:
+        return customer
+    customer = models.Customer(id=str(uuid.uuid4()), phone=phone)
+    db.add(customer)
+    db.commit()
+    db.refresh(customer)
+    return customer
+
+
+def update_customer(db: Session, customer: models.Customer, display_name: str) -> models.Customer:
+    customer.display_name = display_name.strip()
+    db.commit()
+    db.refresh(customer)
+    return customer
+
+
+def create_customer_appointment(db: Session, customer: models.Customer, data: schemas.CustomerAppointmentCreate, service: models.Service, end_at: datetime) -> models.Appointment:
+    obj = models.Appointment(customer_id=customer.id, customer_name=customer.display_name, customer_phone=customer.phone,
+                             service_id=service.id, start_at=data.start_at, end_at=end_at,
+                             notes=(data.notes or "").strip(), status=models.STATUS_PENDING)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 def stats(db: Session) -> dict:

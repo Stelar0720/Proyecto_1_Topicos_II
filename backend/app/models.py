@@ -38,6 +38,7 @@ class Appointment(Base):
     id = Column(Integer, primary_key=True, index=True)
     customer_name = Column(String(120), nullable=False)
     customer_phone = Column(String(20), nullable=False)   # E.164: +569XXXXXXXX
+    customer_id = Column(String(36), ForeignKey("customers.id"), nullable=True, index=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
     start_at = Column(DateTime, nullable=False, index=True)  # hora local (naive)
     end_at = Column(DateTime, nullable=False)
@@ -47,3 +48,32 @@ class Appointment(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     service = relationship("Service", back_populates="appointments")
+    customer = relationship("Customer", back_populates="appointments")
+
+
+class Customer(Base):
+    """Perfil de un cliente identificado; el teléfono normalizado es único."""
+
+    __tablename__ = "customers"
+
+    id = Column(String(36), primary_key=True)
+    phone = Column(String(20), nullable=False, unique=True, index=True)
+    display_name = Column(String(120), nullable=False, default="")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    appointments = relationship("Appointment", back_populates="customer")
+
+
+class CustomerAccessChallenge(Base):
+    """Código de un solo uso. Sólo se persiste su hash, nunca el código plano."""
+
+    __tablename__ = "customer_access_challenges"
+
+    id = Column(String(36), primary_key=True)
+    phone = Column(String(20), nullable=False, index=True)
+    code_hash = Column(String(64), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    attempts = Column(Integer, nullable=False, default=0)
+    consumed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
