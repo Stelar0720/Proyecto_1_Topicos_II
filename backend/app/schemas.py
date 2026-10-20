@@ -1,8 +1,8 @@
 """Esquemas Pydantic (validación de entrada/salida de la API)."""
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Optional
+from datetime import date, datetime
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -127,6 +127,19 @@ class AppointmentStatusUpdate(BaseModel):
 
 
 # ---------- Otros ----------
+class CalendarDayOut(BaseModel):
+    date: date
+    status: Literal["available", "full", "closed", "past"]
+    available_count: int
+
+
+class AvailabilityCalendarOut(BaseModel):
+    service_id: int
+    duration_min: int
+    month: str
+    days: list[CalendarDayOut]
+
+
 class ConfigOut(BaseModel):
     business_name: str
     timezone: str
