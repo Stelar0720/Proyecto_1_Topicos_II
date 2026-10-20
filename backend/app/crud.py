@@ -45,7 +45,11 @@ def delete_service(db: Session, service: models.Service) -> None:
 
 # ---------- Citas ----------
 def create_appointment(
-    db: Session, data: schemas.AppointmentCreate, service: models.Service, end_at: datetime
+    db: Session,
+    data: schemas.AppointmentCreate,
+    service: models.Service,
+    end_at: datetime,
+    cancel_token_hash: Optional[str] = None,
 ) -> models.Appointment:
     obj = models.Appointment(
         customer_name=data.customer_name.strip(),
@@ -55,6 +59,7 @@ def create_appointment(
         end_at=end_at,
         notes=(data.notes or "").strip(),
         status=models.STATUS_PENDING,
+        cancel_token_hash=cancel_token_hash,
     )
     db.add(obj)
     db.commit()
@@ -119,10 +124,18 @@ def update_customer(db: Session, customer: models.Customer, display_name: str) -
     return customer
 
 
-def create_customer_appointment(db: Session, customer: models.Customer, data: schemas.CustomerAppointmentCreate, service: models.Service, end_at: datetime) -> models.Appointment:
+def create_customer_appointment(
+    db: Session,
+    customer: models.Customer,
+    data: schemas.CustomerAppointmentCreate,
+    service: models.Service,
+    end_at: datetime,
+    cancel_token_hash: Optional[str] = None,
+) -> models.Appointment:
     obj = models.Appointment(customer_id=customer.id, customer_name=customer.display_name, customer_phone=customer.phone,
                              service_id=service.id, start_at=data.start_at, end_at=end_at,
-                             notes=(data.notes or "").strip(), status=models.STATUS_PENDING)
+                             notes=(data.notes or "").strip(), status=models.STATUS_PENDING,
+                             cancel_token_hash=cancel_token_hash)
     db.add(obj)
     db.commit()
     db.refresh(obj)

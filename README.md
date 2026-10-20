@@ -13,7 +13,9 @@ Backend en **Python (FastAPI)** con base de datos **SQL**, API REST **documentad
 ## ✨ Características
 
 - **Reserva en 3 pasos**: el cliente elige servicio → día → hora libre, y deja su nombre y celular.
-- **Sin choques de horario**: el motor de disponibilidad calcula los espacios libres según la duración de cada servicio y **evita el doble-booking**.
+- **Calendario dinámico**: muestra días con cupos, sin cupos, cerrados y pasados según el servicio y su duración; se actualiza al cambiar de servicio o mes.
+- **Sin choques de horario**: el motor de disponibilidad calcula los espacios libres según la duración de cada servicio y **evita el doble-booking**; la confirmación revalida en el servidor y avisa si otro cliente tomó el horario.
+- **Cancelación con enlace privado**: token aleatorio por cita, sólo se guarda su hash, apertura sin efecto y cancelación con confirmación explícita. Libera el horario y respeta las reglas de citas pasadas, realizadas o ya canceladas.
 - **Recordatorios por WhatsApp**: envío automático (programado) X horas antes de la cita, además de confirmación al reservar.
 - **Panel de administración**: estadísticas, gestión de reservas (confirmar / cancelar / realizar / eliminar) y de servicios (crear / activar / eliminar), protegido por token.
 - **API REST documentada**: Swagger UI interactivo en `/docs`.
@@ -56,7 +58,8 @@ citafacil/
 │   │   ├── models.py         # Modelos: Service, Appointment
 │   │   ├── schemas.py        # Esquemas Pydantic (validación)
 │   │   ├── crud.py           # Operaciones de base de datos
-│   │   ├── availability.py   # Motor de horarios + anti doble-booking
+│   │   ├── availability.py   # Motor de horarios + calendario + anti doble-booking
+│   │   ├── cancellation.py   # Token privado y reglas de cancelación
 │   │   ├── notifications.py  # Envío de WhatsApp (Twilio)
 │   │   ├── reminders.py      # Recordatorios automáticos
 │   │   ├── auth.py           # Autenticación del panel admin
@@ -68,6 +71,7 @@ citafacil/
 │   └── .env.example
 ├── frontend/
 │   ├── index.html            # Página pública de reservas
+│   ├── cancel.html           # Confirmación de cancelación con token
 │   └── admin.html            # Panel de administración
 ├── render.yaml               # Despliegue en Render (API + PostgreSQL)
 └── README.md
@@ -104,7 +108,10 @@ python -m uvicorn app.main:app --reload
 | GET  | `/api/config` | Datos del negocio (nombre, horario) | — |
 | GET  | `/api/services` | Servicios activos | — |
 | GET  | `/api/availability?service_id=&date=` | Horarios libres de un día | — |
-| POST | `/api/appointments` | Crear una reserva | — |
+| GET  | `/api/availability/calendar?service_id=&month=YYYY-MM` | Estado de cada día (`available`/`full`/`closed`/`past`) | — |
+| POST | `/api/appointments` | Crear una reserva; devuelve `cancel_url` | — |
+| GET  | `/api/appointments/{id}/cancel?token=` | Previsualizar cancelación (no cancela) | token |
+| POST | `/api/appointments/{id}/cancel` | Cancelar con `{"token": "..."}` | token |
 | GET  | `/api/admin/appointments` | Listar reservas (filtros) | 🔒 |
 | PATCH| `/api/admin/appointments/{id}` | Cambiar estado | 🔒 |
 | DELETE | `/api/admin/appointments/{id}` | Eliminar reserva | 🔒 |
@@ -124,6 +131,7 @@ python -m uvicorn app.main:app --reload
 | `ADMIN_TOKEN` | `cambia-este-token-admin` | Token del panel admin |
 | `CORS_ORIGINS` | `*` | Dominios permitidos del frontend |
 | `BUSINESS_NAME` | `Barbería Don Lucho` | Nombre del negocio |
+| `FRONTEND_URL` | vacío | Base pública del frontend para enlaces de cancelación; vacío = enlace relativo `cancel.html` |
 | `OPEN_HOUR` / `CLOSE_HOUR` | `10` / `20` | Horario de atención |
 | `SLOT_INTERVAL_MINUTES` | `30` | Separación entre horarios |
 | `CLOSED_WEEKDAYS` | `6` | Días cerrados (0=lun … 6=dom) |
@@ -162,7 +170,11 @@ cd backend
 python -m pytest
 ```
 
-Cubren la validación de teléfono, el cálculo de disponibilidad, la prevención de doble-booking y la autenticación del panel.
+Cubren la validación de teléfono, el cálculo de disponibilidad, la prevención de doble-booking, la autenticación del panel, el calendario por servicio (días cerrados, pasados y llenos, conflictos) y la cancelación con token (seguridad, confirmación explícita, reglas por estado y liberación del horario). Las pruebas fuerzan Twilio vacío: nunca envían WhatsApp reales.
+
+Resultado de la última ejecución: **19 passed** (Python 3.12).
+
+Documentación de las historias: `docs/PR_HU_02.md`, `docs/PR_HU_04.md` y `docs/AI_INTERVENTIONS.md`.
 
 ---
 

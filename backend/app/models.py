@@ -45,6 +45,9 @@ class Appointment(Base):
     status = Column(String(20), nullable=False, default=STATUS_PENDING)
     notes = Column(String(300), nullable=False, default="")
     reminder_sent = Column(Boolean, nullable=False, default=False)
+    # Sólo se guarda el SHA-256 del token privado de cancelación; el valor plano
+    # se muestra una vez al crear la cita y nunca se persiste.
+    cancel_token_hash = Column(String(64), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     service = relationship("Service", back_populates="appointments")

@@ -6,8 +6,16 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, models, schemas
 from ..availability import generate_calendar, generate_slots, is_slot_free
+from ..cancellation import (
+    appointment_with_cancel_url,
+    cancel_url,
+    cancellation_error,
+    hash_cancel_token,
+    new_cancel_token,
+    token_matches,
+)
 from ..config import settings
 from ..database import get_db
 from ..notifications import confirmation_message, send_whatsapp
@@ -97,11 +105,66 @@ def create_appointment(payload: schemas.AppointmentCreate, db: Session = Depends
             detail="Ese horario ya no está disponible. Por favor elige otro.",
         )
     end_at = payload.start_at + timedelta(minutes=service.duration_min)
-    appt = crud.create_appointment(db, payload, service, end_at)
+    token = new_cancel_token()
+    appt = crud.create_appointment(
+        db, payload, service, end_at, cancel_token_hash=hash_cancel_token(token)
+    )
+    link = cancel_url(appt.id, token)
 
     # Confirmación por WhatsApp (real si Twilio está configurado; simulada si no)
     body = confirmation_message(
-        settings.business_name, appt.customer_name, service.name, appt.start_at
+        settings.business_name, appt.customer_name, service.name, appt.start_at, link
     )
     send_whatsapp(appt.customer_phone, body)
-    return appt
+    return appointment_with_cancel_url(appt, token)
+
+
+INVALID_CANCEL_LINK = "Enlace de cancelación inválido."
+
+
+@router.get(
+    "/appointments/{appt_id}/cancel",
+    response_model=schemas.CancelPreviewOut,
+    summary="Previsualizar la cancelación (no cancela)",
+)
+def preview_cancellation(
+    appt_id: int,
+    token: str = Query(..., description="Token privado del enlace de cancelación"),
+    db: Session = Depends(get_db),
+):
+    """Valida el enlace y devuelve la cita. Abrir el enlace nunca cancela."""
+    appt = crud.get_appointment(db, appt_id)
+    if not appt or not token_matches(appt, token):
+        raise HTTPException(status_code=404, detail=INVALID_CANCEL_LINK)
+    denial = cancellation_error(appt)
+    if denial:
+        raise HTTPException(status_code=409, detail=denial)
+    return {
+        "appointment_id": appt.id,
+        "customer_name": appt.customer_name,
+        "service_name": appt.service.name if appt.service else "Servicio",
+        "start_at": appt.start_at,
+        "status": appt.status,
+    }
+
+
+@router.post(
+    "/appointments/{appt_id}/cancel",
+    response_model=schemas.AppointmentOut,
+    summary="Cancelar una cita con el token privado",
+)
+def cancel_appointment(
+    appt_id: int,
+    payload: schemas.CancelRequest,
+    db: Session = Depends(get_db),
+):
+    """Cancelación explícita: exige token y confirmación por POST."""
+    appt = crud.get_appointment(db, appt_id)
+    if not appt or not token_matches(appt, payload.token):
+        raise HTTPException(status_code=404, detail=INVALID_CANCEL_LINK)
+    denial = cancellation_error(appt)
+    if denial:
+        raise HTTPException(status_code=409, detail=denial)
+    # El motor de disponibilidad ignora las citas canceladas, así que el
+    # horario queda liberado sin tocar sus reglas.
+    return crud.set_status(db, appt, models.STATUS_CANCELLED)

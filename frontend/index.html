@@ -120,6 +120,8 @@
   .result p{color:var(--muted);margin-bottom:18px}
   .msg{border-radius:10px;padding:11px 14px;font-size:.9rem;margin-top:12px;display:none}
   .msg.err{display:block;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:#fecaca}
+  .cancel-link{color:var(--accent-2);font-weight:700;text-decoration:underline}
+  .cancel-hint{display:inline-block;margin-top:8px;font-size:.85rem;color:var(--muted)}
 
   footer{border-top:1px solid var(--border);padding:22px 0;text-align:center;color:var(--muted);font-size:.85rem}
   footer a{color:var(--accent-2);font-weight:600;cursor:pointer}
@@ -504,10 +506,13 @@
       const payload={customer_name:name, customer_phone:phone, service_id:state.service.id,
         start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
       const authenticated=!!customerToken;
-      await api(authenticated?"/api/me/appointments":"/api/appointments",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},authenticated?{Authorization:"Bearer "+customerToken}:{}),body:JSON.stringify(authenticated?{service_id:payload.service_id,start_at:payload.start_at,notes:payload.notes}:payload)}, 65000);
+      const appointment = await api(authenticated?"/api/me/appointments":"/api/appointments",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},authenticated?{Authorization:"Bearer "+customerToken}:{}),body:JSON.stringify(authenticated?{service_id:payload.service_id,start_at:payload.start_at,notes:payload.notes}:payload)}, 65000);
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
-      $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.`;
+      const cancelLink = appointment && appointment.cancel_url
+        ? `<br><span class="cancel-hint">¿No puedes asistir? <a class="cancel-link" href="${appointment.cancel_url}">Cancela tu cita con este enlace privado</a>.</span>`
+        : "";
+      $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.${cancelLink}`;
       ["cardSvc","cardWhen","cardWho"].forEach(id=>$(id).style.display="none");
       document.querySelector(".steps").style.display="none";
       $("cardDone").style.display="block";

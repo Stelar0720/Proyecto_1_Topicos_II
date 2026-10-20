@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # --- Negocio / marca ---
     business_name: str = "Barbería Don Lucho"
     business_timezone: str = "America/Santiago"
+    # Base pública del frontend para armar enlaces de cancelación.
+    # Vacío => enlace relativo (útil al abrir frontend/ localmente).
+    frontend_url: str = ""
     currency: str = "CLP"
     open_hour: int = 10          # apertura (hora local, 24h)
     close_hour: int = 20         # cierre (hora local, 24h)

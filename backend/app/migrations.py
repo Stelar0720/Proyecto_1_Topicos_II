@@ -11,6 +11,10 @@ def apply_schema_migrations(engine) -> None:
     if "appointments" not in inspector.get_table_names():
         return
     columns = {column["name"] for column in inspector.get_columns("appointments")}
-    if "customer_id" not in columns:
-        with engine.begin() as connection:
+    with engine.begin() as connection:
+        if "customer_id" not in columns:
             connection.execute(text("ALTER TABLE appointments ADD COLUMN customer_id VARCHAR(36)"))
+        if "cancel_token_hash" not in columns:
+            connection.execute(
+                text("ALTER TABLE appointments ADD COLUMN cancel_token_hash VARCHAR(64)")
+            )

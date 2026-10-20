@@ -6,6 +6,11 @@ from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..availability import is_slot_free
+from ..cancellation import (
+    appointment_with_cancel_url,
+    hash_cancel_token,
+    new_cancel_token,
+)
 from ..customer_auth import create_access_token, issue_challenge, require_customer, verify_challenge
 from ..database import get_db
 from ..notifications import send_whatsapp
@@ -52,4 +57,13 @@ def create_my_appointment(payload: schemas.CustomerAppointmentCreate, customer: 
         raise HTTPException(status_code=404, detail="Servicio no encontrado.")
     if not is_slot_free(db, service, payload.start_at):
         raise HTTPException(status_code=409, detail="Ese horario ya no está disponible. Por favor elige otro.")
-    return crud.create_customer_appointment(db, customer, payload, service, payload.start_at + timedelta(minutes=service.duration_min))
+    token = new_cancel_token()
+    appt = crud.create_customer_appointment(
+        db,
+        customer,
+        payload,
+        service,
+        payload.start_at + timedelta(minutes=service.duration_min),
+        cancel_token_hash=hash_cancel_token(token),
+    )
+    return appointment_with_cancel_url(appt, token)
