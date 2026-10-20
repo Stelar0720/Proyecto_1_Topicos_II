@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud, schemas
-from ..availability import generate_slots, is_slot_free
+from ..availability import generate_calendar, generate_slots, is_slot_free
 from ..config import settings
 from ..database import get_db
 from ..notifications import confirmation_message, send_whatsapp
@@ -31,6 +31,42 @@ def get_config():
 @router.get("/services", response_model=list[schemas.ServiceOut], summary="Servicios activos")
 def get_services(db: Session = Depends(get_db)):
     return crud.list_services(db, only_active=True)
+
+
+@router.get(
+    "/availability/calendar",
+    response_model=schemas.AvailabilityCalendarOut,
+    summary="Calendario mensual de disponibilidad",
+)
+def get_availability_calendar(
+    service_id: int = Query(..., description="ID del servicio"),
+    month: str = Query(
+        ...,
+        pattern=r"^\d{4}-(0[1-9]|1[0-2])$",
+        description="Mes en formato YYYY-MM",
+    ),
+    db: Session = Depends(get_db),
+):
+    """Estado de cada día del mes para el servicio y su duración.
+
+    ``available`` tiene cupos, ``full`` no tiene cupos, ``closed`` es día no
+    laboral y ``past`` es anterior a hoy. La regla se calcula con el mismo motor
+    que ``GET /api/availability``.
+    """
+    service = crud.get_service(db, service_id)
+    if not service or not service.active:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado.")
+    year, month_number = (int(part) for part in month.split("-"))
+    try:
+        days = generate_calendar(db, service, year, month_number)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Mes inválido.")
+    return {
+        "service_id": service.id,
+        "duration_min": service.duration_min,
+        "month": month,
+        "days": days,
+    }
 
 
 @router.get("/availability", response_model=list[str], summary="Horarios disponibles")
