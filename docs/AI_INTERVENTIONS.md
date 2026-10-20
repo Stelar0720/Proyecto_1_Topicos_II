@@ -21,4 +21,22 @@ Intervenciones reales:
 - En ese punto de la rama: **13 pruebas, 13 passed**. Twilio quedó vacío, por
   lo que no se enviaron WhatsApp reales.
 
-No se registran aprobaciones humanas: revisión de Alex y QA de Jack pendientes.
+## 2026-10-19 — HU-04
+
+A petición de Francisco, `alosslessdev` (IA) implementó la cancelación con
+enlace privado: token aleatorio de 32 bytes, hash SHA-256 en base de datos,
+previsualización sin efecto, `POST` explícito de cancelación, página
+`cancel.html` y reglas documentadas para citas pasadas, realizadas, ya
+canceladas y tokens inválidos. Se agregaron 6 pruebas.
+
+Intervenciones y correcciones reales:
+
+- La verificación visual detectó que la clase CSS `.warn` se aplicaba también
+  al icono y dejaba un bloque vacío; se separó en `.alert` y se corrigió el
+  manejo del mensaje de error.
+- Se ejecutaron **19 pruebas: 19 passed**. No se enviaron WhatsApp reales:
+  Twilio quedó vacío y `send_whatsapp` operó en modo demo.
+
+No se registran aprobaciones humanas: la revisión de Alex y la validación QA
+de Jack están pendientes. Tampoco se registran errores, rechazos ni decisiones
+humanas que no hayan ocurrido.
