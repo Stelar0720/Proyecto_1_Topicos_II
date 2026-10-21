@@ -69,6 +69,22 @@ class AppointmentOut(BaseModel):
     reminder_sent: bool
     created_at: datetime
     service: Optional[ServiceOut] = None
+    # Sólo presente en la respuesta de creación (el token no se puede recuperar).
+    cancel_url: Optional[str] = None
+
+
+class CancelRequest(BaseModel):
+    token: str = Field(..., min_length=1, max_length=256)
+
+
+class CancelPreviewOut(BaseModel):
+    """Datos mínimos para confirmar la cancelación; no expone el teléfono."""
+
+    appointment_id: int
+    customer_name: str
+    service_name: str
+    start_at: datetime
+    status: str
 
 
 # ---------- Identidad de cliente ----------
