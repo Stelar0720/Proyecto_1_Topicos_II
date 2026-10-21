@@ -1,8 +1,12 @@
 """Configuración común de pytest: base de datos aislada y modo demo de WhatsApp."""
 import os
+import tempfile
 
 # Debe fijarse ANTES de importar app.*: la URL se lee al importar database.py.
-os.environ["DATABASE_URL"] = "sqlite:////tmp/citafacil_test.db"
+# tempfile.gettempdir() es portable (Linux/macOS/Windows); una ruta fija /tmp no
+# existe por defecto en Windows.
+_TEST_DB = os.path.join(tempfile.gettempdir(), "citafacil_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///" + _TEST_DB.replace("\\", "/")
 os.environ["ADMIN_TOKEN"] = "test-token"
 # Garantiza que ningún test envíe WhatsApp reales, aunque el entorno tenga Twilio.
 os.environ["TWILIO_ACCOUNT_SID"] = ""

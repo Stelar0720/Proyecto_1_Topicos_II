@@ -70,6 +70,27 @@
   .ico.del:hover{border-color:var(--err);color:var(--err)}
   .empty{color:var(--muted);padding:22px 0;text-align:center}
 
+  /* previsión de demanda */
+  .fc-info{font-size:.85rem;color:var(--muted);margin-bottom:14px}
+  .fc-info b{color:var(--text)}
+  .warnbox{display:flex;gap:9px;align-items:flex-start;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);color:#fbbf24;border-radius:10px;padding:10px 13px;font-size:.85rem;margin-bottom:12px}
+  .legend{display:flex;gap:20px;flex-wrap:wrap;font-size:.82rem;color:var(--muted);margin-bottom:8px}
+  .legend span{display:flex;align-items:center;gap:8px}
+  .sw{width:16px;height:11px;border-radius:3px;display:inline-block}
+  .sw.hist{background:linear-gradient(135deg,#3b82f6,#2563eb)}
+  .sw.fc{background:repeating-linear-gradient(135deg,#22d3ee 0 4px,rgba(34,211,238,.3) 4px 8px);outline:1px dashed rgba(34,211,238,.8)}
+  .chart{display:flex;gap:5px;align-items:flex-end;height:210px;overflow-x:auto;padding:8px 2px 0;border-bottom:1px solid var(--border)}
+  .fcol{flex:0 0 24px;height:100%;display:flex;flex-direction:column}
+  .fcol.sep{border-left:1px dashed rgba(34,211,238,.5);padding-left:5px;margin-left:3px}
+  .fbar-wrap{flex:1;display:flex;align-items:flex-end}
+  .fbar{width:100%;border-radius:4px 4px 0 0;min-height:0;transition:height .3s}
+  .fbar.hist{background:linear-gradient(180deg,#60a5fa,#2563eb)}
+  .fbar.fc{background:repeating-linear-gradient(135deg,#22d3ee 0 4px,rgba(34,211,238,.3) 4px 8px);outline:1px dashed rgba(34,211,238,.8);outline-offset:-1px}
+  .fbar.closed{background:rgba(154,167,180,.25)}
+  .flabel{font-size:.62rem;color:var(--muted);text-align:center;padding-top:5px;font-family:'JetBrains Mono',monospace}
+  .fc-foot{display:flex;gap:18px;flex-wrap:wrap;justify-content:space-between;margin-top:12px;font-size:.8rem;color:var(--muted)}
+  .fc-note{font-size:.78rem;color:var(--muted);margin-top:10px;border-top:1px dashed var(--border);padding-top:10px}
+
   .svc-row{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg-soft);border:1px solid var(--border);border-radius:11px;padding:12px 15px;margin-bottom:9px}
   .svc-row .info{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .svc-row .price{color:var(--accent-2);font-family:'JetBrains Mono',monospace;font-weight:700}
@@ -108,6 +129,22 @@
     <!-- DASHBOARD -->
     <div id="dashView" class="hide">
       <div class="stats" id="stats"></div>
+
+      <div class="card">
+        <h2><i class="fa-solid fa-chart-column"></i> Previsión de demanda</h2>
+        <div class="fc-info" id="fcInfo"></div>
+        <div id="fcWarn"></div>
+        <div class="legend">
+          <span><i class="sw hist"></i> Histórico (reservas reales)</span>
+          <span><i class="sw fc"></i> Previsión próximos 7 días</span>
+        </div>
+        <div class="chart" id="fcChart"><div class="empty">Cargando…</div></div>
+        <div class="fc-foot">
+          <span id="fcBacktest"></span>
+          <span id="fcMeta"></span>
+        </div>
+        <div class="fc-note" id="fcNote"></div>
+      </div>
 
       <div class="card">
         <h2><i class="fa-solid fa-list-check"></i> Reservas</h2>
@@ -200,7 +237,56 @@
   }
 
   /* ====== DATA ====== */
-  async function refreshAll(){ await Promise.all([loadStats(), loadAppointments(), loadServices()]); }
+  async function refreshAll(){ await Promise.all([loadStats(), loadAppointments(), loadServices(), loadForecast()]); }
+
+  /* ====== PREVISIÓN DE DEMANDA (HU-03) ====== */
+  async function loadForecast(){
+    const chart = $("fcChart");
+    try{
+      const f = await api("/api/admin/forecast");
+      renderForecast(f);
+    }catch(e){
+      if(e.status===401){ logout(); return; }
+      chart.innerHTML = '<div class="empty">No se pudo cargar la previsión: '+e.message+'</div>';
+    }
+  }
+
+  function renderForecast(f){
+    const day = s => s.slice(8,10);
+    const fmtDate = s => { const p=s.split("-"); return p[2]+"/"+p[1]; };
+    $("fcInfo").innerHTML =
+      `Ventana histórica: <b>${fmtDate(f.history_start)} → ${fmtDate(f.history_end)}</b> (${f.history_days} días) · `+
+      `Previsión: <b>${f.forecast_days} días desde ${fmtDate(f.cutoff)}</b> · `+
+      `Demanda: citas <b>${f.included_statuses.join(", ")}</b> (se excluyen <b>${f.excluded_statuses.join(", ")}</b>)`;
+
+    $("fcWarn").innerHTML = (f.warnings||[]).map(w =>
+      `<div class="warnbox"><i class="fa-solid fa-triangle-exclamation"></i><span>${w.message}</span></div>`
+    ).join("");
+
+    const max = Math.max(1, ...f.history.map(h=>h.demand), ...f.forecast.map(x=>x.forecast||0));
+    const cols = [];
+    for(const h of f.history){
+      const height = h.demand ? Math.max(h.demand/max*100, 3) : 0;
+      cols.push(`<div class="fcol" title="${fmtDate(h.date)} · histórico: ${h.demand} cita(s)${h.closed?" · día cerrado":""}">
+        <div class="fbar-wrap"><div class="fbar ${h.closed&&!h.demand?"closed":"hist"}" style="height:${height}%"></div></div>
+        <div class="flabel">${day(h.date)}</div></div>`);
+    }
+    f.forecast.forEach((x,i)=>{
+      const v = x.forecast;
+      const height = v ? Math.max(v/max*100, 3) : 0;
+      const label = v==null ? "sin datos" : v.toFixed(1)+" cita(s)";
+      cols.push(`<div class="fcol fc${i===0?" sep":""}" title="${fmtDate(x.date)} · previsión: ${label}${x.closed?" · día cerrado":""}">
+        <div class="fbar-wrap"><div class="fbar ${x.closed?"closed":"fc"}" style="height:${height}%"></div></div>
+        <div class="flabel">${day(x.date)}</div></div>`);
+    });
+    $("fcChart").innerHTML = cols.join("");
+
+    $("fcBacktest").textContent = f.backtest
+      ? `Verificación retrospectiva (corte ${fmtDate(f.backtest.cutoff)}): MAE = ${f.backtest.mae} citas/día en ${f.backtest.evaluated_days} día(s).`
+      : "Verificación retrospectiva: aún no hay datos suficientes.";
+    $("fcMeta").textContent = `${f.observed_days} día(s) con datos · ${f.observed_appointments} cita(s) en la ventana`;
+    $("fcNote").textContent = f.method + " Sólo informativo: no cambia precios ni capacidad automáticamente.";
+  }
 
   async function loadStats(){
     try{
