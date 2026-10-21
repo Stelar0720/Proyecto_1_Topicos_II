@@ -140,6 +140,51 @@ class AvailabilityCalendarOut(BaseModel):
     days: list[CalendarDayOut]
 
 
+# ---------- Previsión de demanda (HU-03) ----------
+class ForecastHistoryDayOut(BaseModel):
+    date: date
+    demand: int
+    closed: bool
+
+
+class ForecastDayOut(BaseModel):
+    date: date
+    forecast: Optional[float]
+    closed: bool
+    basis: Literal["weekday_average", "overall_average", "closed", "no_data"]
+
+
+class ForecastWarningOut(BaseModel):
+    code: str
+    message: str
+
+
+class ForecastBacktestOut(BaseModel):
+    cutoff: date
+    days: int
+    evaluated_days: int
+    mae: float
+
+
+class DemandForecastOut(BaseModel):
+    cutoff: date
+    history_start: date
+    history_end: date
+    history_days: int
+    forecast_days: int
+    method: str
+    demand_definition: str
+    included_statuses: list[str]
+    excluded_statuses: list[str]
+    closed_weekdays: list[int]
+    observed_days: int
+    observed_appointments: int
+    warnings: list[ForecastWarningOut]
+    history: list[ForecastHistoryDayOut]
+    forecast: list[ForecastDayOut]
+    backtest: Optional[ForecastBacktestOut] = None
+
+
 class ConfigOut(BaseModel):
     business_name: str
     timezone: str

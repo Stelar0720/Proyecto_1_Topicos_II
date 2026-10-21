@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, forecast, schemas
 from ..auth import require_admin
 from ..database import get_db
 from ..reminders import run_reminders
@@ -78,6 +78,29 @@ def remove_appointment(appt_id: int, db: Session = Depends(get_db)):
 @router.get("/stats", response_model=schemas.StatsOut, summary="Estadísticas")
 def get_stats(db: Session = Depends(get_db)):
     return crud.stats(db)
+
+
+@router.get(
+    "/forecast",
+    response_model=schemas.DemandForecastOut,
+    summary="Previsión de demanda (histórico + próximos 7 días)",
+)
+def get_forecast(
+    history_days: int = Query(
+        forecast.DEFAULT_HISTORY_DAYS,
+        ge=7,
+        le=90,
+        description="Días de ventana histórica a promediar",
+    ),
+    days: int = Query(
+        forecast.FORECAST_DAYS,
+        ge=1,
+        le=14,
+        description="Días futuros a pronosticar",
+    ),
+    db: Session = Depends(get_db),
+):
+    return forecast.build_forecast(db, history_days=history_days, days=days)
 
 
 @router.post("/reminders/run", summary="Enviar recordatorios ahora")

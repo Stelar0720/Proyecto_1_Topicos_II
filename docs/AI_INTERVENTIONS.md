@@ -1,4 +1,4 @@
-# Registro de intervenciones de IA
+﻿# Registro de intervenciones de IA
 
 ## 2026-10-19 — HU-01 y HU-05
 
@@ -22,3 +22,29 @@ Intervenciones reales:
   lo que no se enviaron WhatsApp reales.
 
 No se registran aprobaciones humanas: revisión de Alex y QA de Jack pendientes.
+
+## 2026-10-21 — HU-03
+
+A petición de Jack, la IA implementó la previsión de demanda con promedio por día
+de la semana (ventana de 28 días), el endpoint `GET /api/admin/forecast`, la
+tarjeta con gráfico histórico/previsión en el panel admin, un generador de datos
+sintéticos claramente marcados y 15 pruebas deterministas. No se entrenó ningún
+modelo ni se usó una API de IA para predecir.
+
+Intervenciones reales:
+
+- El entorno local tiene Python 3.14; los pins de `pydantic-core` y
+  `psycopg2-binary` no compilan ahí. Para ejecutar las pruebas se instalaron
+  versiones actuales sin pins en un `.venv` local (no se modificó
+  `requirements.txt`).
+- `tests/conftest.py` usaba `/tmp/citafacil_test.db`, inexistente en Windows;
+  se cambió a `tempfile.gettempdir()` para que la suite corra en ambos sistemas.
+- La primera versión de la prueba de backtest sembraba sólo el historial anterior
+  al corte retrospectivo y daba MAE 2.0; luego, al promediar también los días sin
+  citas, daba 1.0 porque faltaban días de la ventana. Se corrigió la siembra de
+  la prueba (no el cálculo) sembrando los 35 días necesarios.
+- Resultado real al cierre: **28 pruebas, 28 passed** (13 previas + 15 de HU-03).
+  Twilio quedó vacío y no se enviaron WhatsApp reales.
+
+No se registran aprobaciones humanas: revisión de Jack y QA de Francisco
+pendientes.

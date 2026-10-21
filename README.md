@@ -110,6 +110,7 @@ python -m uvicorn app.main:app --reload
 | DELETE | `/api/admin/appointments/{id}` | Eliminar reserva | 🔒 |
 | GET/POST/PUT/DELETE | `/api/admin/services` | Gestionar servicios | 🔒 |
 | GET  | `/api/admin/stats` | Estadísticas | 🔒 |
+| GET  | `/api/admin/forecast` | Histórico + previsión de demanda (7 días) | 🔒 |
 | POST | `/api/admin/reminders/run` | Enviar recordatorios ahora | 🔒 |
 
 🔒 = requiere la cabecera `X-Admin-Token`.
