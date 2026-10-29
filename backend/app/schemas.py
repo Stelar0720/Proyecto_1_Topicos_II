@@ -205,6 +205,7 @@ class ConfigOut(BaseModel):
     business_name: str
     timezone: str
     currency: str
+    usd_exchange_rate: float
     open_hour: int
     close_hour: int
     slot_interval_minutes: int

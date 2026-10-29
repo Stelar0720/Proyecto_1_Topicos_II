@@ -23,7 +23,12 @@ router = APIRouter(prefix="/api", tags=["Clientes"])
 def request_challenge(payload: schemas.CustomerChallengeRequest, db: Session = Depends(get_db)):
     code = issue_challenge(db, payload.customer_phone)
     send_whatsapp(payload.customer_phone, f"Tu código de acceso a {settings.business_name} es: {code}. Vence pronto.")
-    return {"detail": "Si el número puede recibir mensajes, enviamos un código de acceso."}
+    response = {"detail": "Si el número puede recibir mensajes, enviamos un código de acceso."}
+    if settings.demo_mode:
+        # Es deliberadamente una facilidad de demo local. En modo normal el
+        # código sólo viaja al proveedor de mensajería.
+        response["demo_code"] = code
+    return response
 
 
 @router.post("/customer-access/tokens", response_model=schemas.CustomerTokenOut)

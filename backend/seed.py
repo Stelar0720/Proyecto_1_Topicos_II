@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from app import models
+from app import crud, models
 from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.utils import local_now, normalize_cl_phone
@@ -35,9 +35,11 @@ def run() -> None:
             for s in SERVICES:
                 db.add(models.Service(**s))
             db.commit()
-            print(f"✔ Sembrados {len(SERVICES)} servicios.")
+            # ASCII para que el script también funcione desde consolas Windows
+            # configuradas con cp1252 durante la demostración.
+            print(f"OK: sembrados {len(SERVICES)} servicios.")
         else:
-            print("• Ya existen servicios; no se vuelve a sembrar.")
+            print("INFO: ya existen servicios; no se vuelve a sembrar.")
 
         if db.query(models.Appointment).count() == 0:
             corte = db.query(models.Service).filter_by(name="Corte de pelo").first()
@@ -48,10 +50,15 @@ def run() -> None:
                 ("Diego Soto", "+56 9 1234 5678", barba, base.replace(hour=12)),
             ]
             for name, phone, svc, start in ejemplos:
+                normalized_phone = normalize_cl_phone(phone)
+                customer = crud.get_or_create_customer(db, normalized_phone)
+                if not customer.display_name:
+                    customer.display_name = name
                 db.add(
                     models.Appointment(
                         customer_name=name,
-                        customer_phone=normalize_cl_phone(phone),
+                        customer_phone=normalized_phone,
+                        customer_id=customer.id,
                         service_id=svc.id,
                         start_at=start,
                         end_at=start + timedelta(minutes=svc.duration_min),
@@ -59,9 +66,9 @@ def run() -> None:
                     )
                 )
             db.commit()
-            print("✔ Citas de ejemplo creadas.")
+            print("OK: citas de ejemplo creadas.")
         else:
-            print("• Ya existen citas; no se crean ejemplos.")
+            print("INFO: ya existen citas; no se crean ejemplos.")
     finally:
         db.close()
 

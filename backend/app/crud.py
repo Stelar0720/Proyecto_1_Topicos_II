@@ -51,9 +51,16 @@ def create_appointment(
     end_at: datetime,
     cancel_token_hash: Optional[str] = None,
 ) -> models.Appointment:
+    # Las reservas públicas también pertenecen al perfil asociado al teléfono.
+    # Así el cliente puede autenticarse después y ver una reserva que creó
+    # antes de iniciar sesión.
+    customer = get_or_create_customer(db, data.customer_phone)
+    if not customer.display_name:
+        customer.display_name = data.customer_name.strip()
     obj = models.Appointment(
         customer_name=data.customer_name.strip(),
         customer_phone=data.customer_phone,
+        customer_id=customer.id,
         service_id=service.id,
         start_at=data.start_at,
         end_at=end_at,

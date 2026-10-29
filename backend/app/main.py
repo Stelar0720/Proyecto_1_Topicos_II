@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .config import settings
@@ -74,6 +76,11 @@ app.include_router(public.router)
 app.include_router(customers.router)
 app.include_router(admin.router)
 app.include_router(scores.router)
+
+# La demo se sirve desde el mismo origen que la API. Esto evita depender de
+# `file://`, CORS o una URL vieja guardada en localStorage durante la exposición.
+FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+app.mount("/demo", StaticFiles(directory=FRONTEND_DIR, html=True), name="demo")
 
 
 @app.get("/", include_in_schema=False)

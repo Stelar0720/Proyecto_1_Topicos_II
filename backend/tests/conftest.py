@@ -12,6 +12,7 @@ os.environ["ADMIN_TOKEN"] = "test-token"
 os.environ["TWILIO_ACCOUNT_SID"] = ""
 os.environ["TWILIO_AUTH_TOKEN"] = ""
 os.environ["TWILIO_WHATSAPP_FROM"] = ""
+os.environ["DEMO_MODE"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

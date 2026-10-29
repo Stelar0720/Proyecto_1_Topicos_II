@@ -130,10 +130,12 @@
 
 <script>
   /* ====== CONFIG ====== */
-  const DEFAULT_API = "https://citafacil-api.onrender.com";
+  const isLocalDemo = ["localhost","127.0.0.1"].includes(location.hostname);
+  const DEFAULT_API = isLocalDemo
+    ? location.origin : "https://citafacil-api.onrender.com";
   const qp = new URLSearchParams(location.search).get("api");
   if (qp) localStorage.setItem("citafacil_api", qp);
-  const API = (localStorage.getItem("citafacil_api") || DEFAULT_API).replace(/\/$/, "");
+  const API = (qp || (isLocalDemo ? location.origin : localStorage.getItem("citafacil_api")) || DEFAULT_API).replace(/\/$/, "");
 
   const params = new URLSearchParams(location.search);
   const appointmentId = params.get("id");

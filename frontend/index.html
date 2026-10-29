@@ -60,6 +60,7 @@
   .svc .n{font-weight:700;margin-bottom:6px}
   .svc .meta{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem}
   .svc .price{color:var(--accent-2);font-weight:700;font-family:'JetBrains Mono',monospace}
+  .usd-price{display:block;margin-top:2px;color:var(--muted);font-size:.76rem;font-family:inherit;font-weight:600}
 
   input,textarea{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:11px;color:var(--text);
     font:inherit;padding:12px 14px;transition:border-color .2s,box-shadow .2s}
@@ -110,6 +111,9 @@
     cursor:pointer;border:none;background:var(--grad);color:#fff;box-shadow:0 8px 22px rgba(59,130,246,.3);transition:transform .15s,opacity .2s}
   .btn:hover{transform:translateY(-2px)} .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
   .btn.ghost{background:transparent;border:1.5px solid var(--border);box-shadow:none;color:var(--text)}
+  .account-actions{display:flex;flex-wrap:wrap;gap:10px;margin:-4px 0 18px}
+  .btn.account-btn{padding:10px 14px;font-size:.86rem;border-radius:10px;box-shadow:0 5px 14px rgba(59,130,246,.2)}
+  .btn.account-btn.ghost{box-shadow:none}
   .summary{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:.92rem}
   .summary b{color:var(--accent-2)}
 
@@ -193,8 +197,11 @@
     <div class="card disabled" id="cardWho">
       <h2><i class="fa-solid fa-user"></i> Tus datos</h2>
       <p class="hint">Para confirmarte la reserva por WhatsApp.</p>
-      <p class="hint">¿Ya reservaste? <button type="button" onclick="customerAccess()">Usar mis datos guardados</button></p>
-      <p class="hint"><button type="button" onclick="showMyAppointments()">Ver mis próximas citas</button></p>
+      <p class="hint">¿Ya reservaste? Ingresa con tu celular para reutilizar tus datos o consultar tus reservas.</p>
+      <div class="account-actions">
+        <button class="btn account-btn" type="button" onclick="customerAccess()"><i class="fa-solid fa-user-check"></i> Usar mis datos guardados</button>
+        <button class="btn ghost account-btn" type="button" onclick="showMyAppointments()"><i class="fa-regular fa-calendar-days"></i> Ver mis próximas citas</button>
+      </div>
       <div class="summary" id="summary"></div>
       <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
       <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+56 9 XXXX XXXX" inputmode="tel" autocomplete="tel" /></div>
@@ -226,10 +233,12 @@
   /* ====== CONFIG ====== */
   // Cambia esta URL por la de tu backend en producción (Render).
   // También puedes pasar ?api=https://tu-api.onrender.com en la URL.
-  const DEFAULT_API = "https://citafacil-api.onrender.com";
+  const isLocalDemo = ["localhost","127.0.0.1"].includes(location.hostname);
+  const DEFAULT_API = isLocalDemo
+    ? location.origin : "https://citafacil-api.onrender.com";
   const qp = new URLSearchParams(location.search).get("api");
   if (qp) localStorage.setItem("citafacil_api", qp);
-  const API = (localStorage.getItem("citafacil_api") || DEFAULT_API).replace(/\/$/, "");
+  const API = (qp || (isLocalDemo ? location.origin : localStorage.getItem("citafacil_api")) || DEFAULT_API).replace(/\/$/, "");
 
   function configApi(){
     const cur = localStorage.getItem("citafacil_api") || DEFAULT_API;
@@ -237,7 +246,9 @@
     if (v){ localStorage.setItem("citafacil_api", v.trim()); location.reload(); }
   }
 
-  const money = n => "$" + (n||0).toLocaleString("es-CL");
+  let usdExchangeRate = 987.65;
+  const money = n => "$" + (n||0).toLocaleString("es-CL") + " CLP";
+  const usdMoney = n => "≈ US$" + ((n||0) / usdExchangeRate).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
 
   // fetch con timeout opcional (AbortController) para no colgarse en un arranque en frío.
   async function api(path, opts, timeoutMs){
@@ -268,8 +279,9 @@
 
   async function customerAccess(){
     const phone=prompt("Ingresa tu celular para recibir un código por WhatsApp:"); if(!phone) return;
-    await api("/api/customer-access/challenges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({customer_phone:phone})});
-    const code=prompt("Ingresa el código de 6 dígitos recibido:"); if(!code) return;
+    const challenge=await api("/api/customer-access/challenges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({customer_phone:phone})});
+    const demoHint=challenge.demo_code ? `\n\nModo demo: usa el código ${challenge.demo_code}.` : "";
+    const code=prompt("Ingresa el código de 6 dígitos recibido:"+demoHint, challenge.demo_code || ""); if(!code) return;
     const token=await api("/api/customer-access/tokens",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({customer_phone:phone,code})});
     customerToken=token.access_token; sessionStorage.setItem("citafacil_customer_token",customerToken);
     let me=await api("/api/me",{headers:{Authorization:"Bearer "+customerToken}});
@@ -330,6 +342,8 @@
         $("brandName").textContent = cfg.business_name;
         document.title = cfg.business_name + " — Reserva tu hora";
         window.__cfg = cfg;
+        if (cfg.usd_exchange_rate > 0) usdExchangeRate = cfg.usd_exchange_rate;
+        renderServices();
       }
     }catch(e){ /* usa defaults */ }
 
@@ -345,7 +359,7 @@
     state.services.forEach(s=>{
       const el = document.createElement("div");
       el.className = "svc";
-      el.innerHTML = `<div class="n">${s.name}</div><div class="meta"><span><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span></div>`;
+      el.innerHTML = `<div class="n">${s.name}</div><div class="meta"><span><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}<small class="usd-price">${usdMoney(s.price)}</small></span></div>`;
       el.onclick = ()=>selectService(s, el);
       g.appendChild(el);
     });
@@ -446,7 +460,7 @@
     state.time = null;
     document.querySelectorAll(".svc").forEach(x=>x.classList.remove("sel"));
     el.classList.add("sel");
-    $("whenHint").textContent = `${s.name} · ${s.duration_min} min · ${money(s.price)}`;
+    $("whenHint").textContent = `${s.name} · ${s.duration_min} min · ${money(s.price)} (${usdMoney(s.price)})`;
     $("slots").innerHTML = '<div class="empty">Elige un día con cupos.</div>';
     $("summary").innerHTML = "";
     setStep(2);
@@ -491,7 +505,7 @@
     b.classList.add("sel");
     const d = new Date(state.date+"T"+t);
     const fecha = d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
-    $("summary").innerHTML = `<b>${state.service.name}</b> · ${fecha} a las <b>${t}</b> · ${money(state.service.price)}`;
+    $("summary").innerHTML = `<b>${state.service.name}</b> · ${fecha} a las <b>${t}</b> · ${money(state.service.price)} <span class="usd-price">${usdMoney(state.service.price)}</span>`;
     setStep(3);
     $("cardWho").scrollIntoView({behavior:"smooth", block:"center"});
   }

@@ -5,7 +5,7 @@ IMPORTANTE: este script NO carga historial real. Las citas que crea llevan
 No las presentes como historial del negocio.
 
 Uso:
-    python seed_forecast_demo.py            # inserta 8 semanas de historial sintético
+    python seed_forecast_demo.py            # repone 8 semanas de historial sintético
     python seed_forecast_demo.py --clear    # elimina sólo las filas sintéticas
 """
 from __future__ import annotations
@@ -38,6 +38,9 @@ def clear(db) -> int:
 
 
 def seed(db, weeks: int = 8) -> int:
+    # Hace el script repetible: al volver a prepararse la demo no se duplican
+    # citas ni se distorsionan el gráfico y las estadísticas.
+    clear(db)
     service = db.query(models.Service).filter_by(name="Corte").first()
     if not service:
         service = models.Service(name="Corte", duration_min=30, price=8000, active=True)

@@ -6,12 +6,18 @@ y en producción (PostgreSQL en Render) sin tocar nada.
 """
 from __future__ import annotations
 
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        # CITAFACIL_ENV_FILE permite usar una configuración local aislada para
+        # demostraciones sin tocar las credenciales ni la base habituales.
+        env_file=os.getenv("CITAFACIL_ENV_FILE", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     # --- Negocio / marca ---
@@ -21,6 +27,9 @@ class Settings(BaseSettings):
     # Vacío => enlace relativo (útil al abrir frontend/ localmente).
     frontend_url: str = ""
     currency: str = "CLP"
+    # Referencia informativa para mostrar equivalentes en USD; los precios se
+    # guardan siempre en CLP y nunca se convierten ni se redondean en la BD.
+    usd_exchange_rate: float = 987.65
     open_hour: int = 10          # apertura (hora local, 24h)
     close_hour: int = 20         # cierre (hora local, 24h)
     slot_interval_minutes: int = 30
@@ -37,6 +46,9 @@ class Settings(BaseSettings):
     customer_access_code_minutes: int = 10
     customer_access_token_minutes: int = 30
     cors_origins: str = "*"      # separado por comas, o "*" para todos
+    # Nunca activar en producción: permite mostrar el OTP en la respuesta para
+    # que una demostración local no dependa de leer la consola.
+    demo_mode: bool = False
 
     # --- Twilio / WhatsApp ---
     twilio_account_sid: str = ""
