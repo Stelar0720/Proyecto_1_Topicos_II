@@ -49,6 +49,35 @@ def test_create_and_conflict():
     assert r2.status_code == 409
 
 
+def test_public_booking_is_visible_after_customer_access():
+    """Una reserva creada antes de iniciar sesión queda ligada al perfil."""
+    sid = client.get("/api/services").json()[0]["id"]
+    phone = "+56987654321"
+    created = client.post(
+        "/api/appointments",
+        json={
+            "customer_name": "Camila",
+            "customer_phone": phone,
+            "service_id": sid,
+            "start_at": _next_open_day_at(15).isoformat(),
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    from app.customer_auth import issue_challenge
+    db = SessionLocal()
+    code = issue_challenge(db, phone)
+    db.close()
+    token_response = client.post(
+        "/api/customer-access/tokens", json={"customer_phone": phone, "code": code}
+    )
+    headers = {"Authorization": "Bearer " + token_response.json()["access_token"]}
+    mine = client.get("/api/me/appointments", headers=headers)
+    assert mine.status_code == 200
+    assert len(mine.json()) == 1
+    assert mine.json()[0]["id"] == created.json()["id"]
+
+
 def test_availability_removes_booked_slot():
     sid = client.get("/api/services").json()[0]["id"]
     day = _next_open_day_at(11)

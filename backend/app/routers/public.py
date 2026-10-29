@@ -29,6 +29,7 @@ def get_config():
         business_name=settings.business_name,
         timezone=settings.business_timezone,
         currency=settings.currency,
+        usd_exchange_rate=settings.usd_exchange_rate,
         open_hour=settings.open_hour,
         close_hour=settings.close_hour,
         slot_interval_minutes=settings.slot_interval_minutes,

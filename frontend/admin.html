@@ -95,7 +95,7 @@
   .svc-row .info{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .svc-row .price{color:var(--accent-2);font-family:'JetBrains Mono',monospace;font-weight:700}
   .svc-row .inactive{opacity:.5}
-  .add-svc{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end;margin-top:14px}
+  .add-svc{display:grid;grid-template-columns:2fr 1fr 1fr .75fr auto;gap:10px;align-items:end;margin-top:14px}
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px 18px;box-shadow:var(--shadow);font-size:.9rem;display:none;z-index:50}
   .toast.err{border-color:rgba(248,113,113,.5)} .toast.ok{border-color:rgba(34,197,94,.5)}
   .hide{display:none!important}
@@ -177,7 +177,8 @@
         <div class="add-svc">
           <div class="field" style="margin:0"><label>Nombre</label><input id="nsName" placeholder="Ej: Corte de pelo" /></div>
           <div class="field" style="margin:0"><label>Duración (min)</label><input id="nsDur" type="number" value="30" min="5" step="5" /></div>
-          <div class="field" style="margin:0"><label>Precio (CLP)</label><input id="nsPrice" type="number" value="8000" min="0" step="500" /></div>
+          <div class="field" style="margin:0"><label id="nsPriceLabel">Precio (CLP)</label><input id="nsPrice" type="number" value="8000" min="0" step="500" /></div>
+          <div class="field" style="margin:0"><label for="nsCurrency">Moneda</label><select id="nsCurrency" onchange="syncNewPriceCurrency()"><option value="CLP">CLP</option><option value="USD">USD</option></select></div>
           <button class="btn sm" onclick="addService()"><i class="fa-solid fa-plus"></i> Agregar</button>
         </div>
       </div>
@@ -189,13 +190,17 @@
 
 <script>
   /* ====== CONFIG ====== */
-  const DEFAULT_API = "https://citafacil-api.onrender.com";
+  const isLocalDemo = ["localhost","127.0.0.1"].includes(location.hostname);
+  const DEFAULT_API = isLocalDemo
+    ? location.origin : "https://citafacil-api.onrender.com";
   const qp = new URLSearchParams(location.search).get("api");
   if (qp) localStorage.setItem("citafacil_api", qp);
-  const API = (localStorage.getItem("citafacil_api") || DEFAULT_API).replace(/\/$/, "");
+  const API = (qp || (isLocalDemo ? location.origin : localStorage.getItem("citafacil_api")) || DEFAULT_API).replace(/\/$/, "");
 
   const $ = id => document.getElementById(id);
-  const money = n => "$" + (n||0).toLocaleString("es-CL");
+  let usdExchangeRate = 987.65;
+  const money = n => "$" + (n||0).toLocaleString("es-CL") + " CLP";
+  const usdMoney = n => "≈ US$" + ((n||0) / usdExchangeRate).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
   let TOKEN = localStorage.getItem("citafacil_token") || "";
 
   function toast(msg, kind){ const t=$("toast"); t.textContent=msg; t.className="toast "+(kind||""); t.style.display="block"; setTimeout(()=>t.style.display="none", 2800); }
@@ -237,7 +242,17 @@
   }
 
   /* ====== DATA ====== */
-  async function refreshAll(){ await Promise.all([loadStats(), loadAppointments(), loadServices(), loadForecast()]); }
+  async function refreshAll(){
+    await loadCurrencyConfig();
+    await Promise.all([loadStats(), loadAppointments(), loadServices(), loadForecast()]);
+  }
+
+  async function loadCurrencyConfig(){
+    try{
+      const cfg = await api("/api/config");
+      if(cfg.usd_exchange_rate > 0) usdExchangeRate = cfg.usd_exchange_rate;
+    }catch(e){ /* mantenemos la referencia por defecto */ }
+  }
 
   /* ====== PREVISIÓN DE DEMANDA (HU-03) ====== */
   async function loadForecast(){
@@ -345,8 +360,9 @@
       box.innerHTML="";
       list.forEach(s=>{
         const row=document.createElement("div"); row.className="svc-row"+(s.active?"":" inactive");
-        row.innerHTML=`<div class="info"><b>${s.name}</b><span style="color:var(--muted)"><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span>${s.active?"":'<span class="badge b-cancelled">inactivo</span>'}</div>
+        row.innerHTML=`<div class="info"><b>${s.name}</b><span style="color:var(--muted)"><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)} <small style="color:var(--muted);font-family:inherit">${usdMoney(s.price)}</small></span>${s.active?"":'<span class="badge b-cancelled">inactivo</span>'}</div>
           <div class="actions">
+            <button class="ico warn" title="Editar precio" onclick="editServicePrice(${s.id},${s.price})"><i class="fa-solid fa-pen"></i></button>
             <button class="ico warn" title="${s.active?'Desactivar':'Activar'}" onclick="toggleSvc(${s.id},${!s.active})"><i class="fa-solid fa-power-off"></i></button>
             <button class="ico del" title="Eliminar" onclick="delSvc(${s.id})"><i class="fa-solid fa-trash"></i></button>
           </div>`;
@@ -358,17 +374,54 @@
     try{ await api(`/api/admin/services/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({active})}); loadServices(); }
     catch(e){ toast(e.message,"err"); }
   }
+  async function editServicePrice(id, currentPrice){
+    const raw = prompt(
+      "Nuevo precio. Incluye la moneda: por ejemplo, 8000 CLP o 8.10 USD.",
+      `${currentPrice} CLP`
+    );
+    if(raw === null) return;
+    const match = raw.trim().match(/^(\d+(?:[.,]\d+)?)\s*(CLP|USD)$/i);
+    if(!match){
+      toast("Usa un monto y moneda: 8000 CLP o 8.10 USD.","err");
+      return;
+    }
+    const amount = Number(match[1].replace(",","."));
+    const currency = match[2].toUpperCase();
+    const price = Math.round(amount * (currency === "USD" ? usdExchangeRate : 1));
+    if(!Number.isFinite(price) || price < 0){
+      toast("Ingresa un precio válido.","err");
+      return;
+    }
+    try{
+      await api(`/api/admin/services/${id}`,{
+        method:"PUT",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({price})
+      });
+      toast("Precio actualizado.","ok");
+      loadServices();
+    }catch(e){ toast(e.message,"err"); }
+  }
   async function delSvc(id){
     if(!confirm("¿Eliminar este servicio?")) return;
     try{ await api(`/api/admin/services/${id}`,{method:"DELETE"}); toast("Servicio eliminado","ok"); loadServices(); }
     catch(e){ toast(e.message,"err"); }
   }
   async function addService(){
-    const name=$("nsName").value.trim(), duration_min=parseInt($("nsDur").value), price=parseInt($("nsPrice").value);
+    const name=$("nsName").value.trim(), duration_min=parseInt($("nsDur").value);
+    const rawAmount=$("nsPrice").value.trim(), amount=Number(rawAmount), currency=$("nsCurrency").value;
+    const price=Math.round(amount*(currency==="USD"?usdExchangeRate:1));
     if(name.length<2){ toast("Escribe un nombre válido","err"); return; }
+    if(!rawAmount || !Number.isFinite(price) || price<0){ toast("Ingresa un precio válido.","err"); return; }
     try{ await api("/api/admin/services",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,duration_min,price})});
       $("nsName").value=""; toast("Servicio agregado","ok"); loadServices();
     }catch(e){ toast(e.message,"err"); }
+  }
+  function syncNewPriceCurrency(){
+    const currency=$("nsCurrency").value, input=$("nsPrice");
+    $("nsPriceLabel").textContent=`Precio (${currency})`;
+    input.step=currency==="USD"?"0.01":"500";
+    input.value=currency==="USD"?(8000/usdExchangeRate).toFixed(2):"8000";
   }
 
   async function runReminders(){
